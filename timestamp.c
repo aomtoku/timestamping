@@ -19,7 +19,9 @@
 #endif
 
 
-//#define TPACKETV3
+#define TPACKETV3
+
+const char iface[16] = "ens255f0";
 
 struct scm_timestamping {
 	struct timespec ts[3];
@@ -35,6 +37,7 @@ int main (int argc, char *argv)
 	struct ifreq hwtstamp;
 	struct hwtstamp_config hwconfig, hwconfig_requested;
 	int so_timestamping_flags = 0;
+
 	so_timestamping_flags |= SOF_TIMESTAMPING_RX_SOFTWARE;
 	so_timestamping_flags |= SOF_TIMESTAMPING_RX_HARDWARE;
 	so_timestamping_flags |= SOF_TIMESTAMPING_TX_HARDWARE;
@@ -52,13 +55,13 @@ int main (int argc, char *argv)
 	 * Device Configuration
 	 */
 	memset(&device, 0, sizeof(device));
-	strncpy(device.ifr_name, "ens255f1", sizeof(device.ifr_name));
+	strncpy(device.ifr_name, iface, sizeof(device.ifr_name));
 	if (ioctl(fd, SIOCGIFADDR, &device) < 0) {
 		printf("Error: ioctl\n");
 		return 1;
 	}
 	memset(&hwtstamp, 0, sizeof(hwtstamp));
-	strncpy(hwtstamp.ifr_name, "ens255f1", sizeof(hwtstamp.ifr_name));
+	strncpy(hwtstamp.ifr_name, iface, sizeof(hwtstamp.ifr_name));
 	hwtstamp.ifr_data = (void *)&hwconfig;
 	memset(&hwconfig, 0, sizeof(hwconfig));
 	hwconfig.tx_type =
@@ -83,12 +86,6 @@ int main (int argc, char *argv)
 	       hwconfig_requested.rx_filter, hwconfig.rx_filter);
 
 	
-	unsigned char buf[1600];
-	struct msghdr msghdr;
-	int flag;
-	ssize_t msglen;
-	int rc;
-
 	/*
 	 * TPACKET_V3 Configuration
 	 */ 
@@ -101,12 +98,18 @@ int main (int argc, char *argv)
 	}
 #endif /* TPACKETV3 */
 
+
+	/*
+	 * Controlo Message Configuration
+	 */
 	char    inbuf[BUFSIZ];
+	struct msghdr msghdr;
 	char    cmsgbuf[CMSG_SPACE(sizeof(struct timeval))];
 	struct  cmsghdr *cmsg, *t;
 	struct  iovec   msg_iov;
 	struct timeval  *pTime, tv;
 	const int on = 1;
+	int rc;
 
 	rc = setsockopt(fd, SOL_SOCKET, SO_TIMESTAMPING, &so_timestamping_flags, sizeof(so_timestamping_flags));
 
@@ -126,6 +129,7 @@ int main (int argc, char *argv)
 	msghdr.msg_controllen = sizeof(cmsgbuf);
 
 	printf("Start Receiving!\n");
+
 	while ( recvmsg(fd, &msghdr, 0) ){
 		t = CMSG_FIRSTHDR(&msghdr);
 		if (t != NULL) {
@@ -145,5 +149,6 @@ int main (int argc, char *argv)
 			}
 		}
 	}
+
 	return 0;
 }
